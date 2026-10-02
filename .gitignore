@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+raw/
+datasets/
+runs/
+*.pt
+!weights/best.pt
+.venv/
