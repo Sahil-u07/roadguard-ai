@@ -44,7 +44,13 @@ Tests: `pip install pytest && pytest`
 
 ## Pilot results
 
-_To be filled with measured numbers only._
+To test the whole pipeline before training on the merged data, we passed the public [Ultralytics Crack-seg](https://docs.ultralytics.com/datasets/segment/crack-seg/) dataset through `merge_datasets.py` and fine-tuned YOLOv8n on a CPU: 15 epochs, 1,115 training images (30%), 416 px, about 20 minutes. Test split (112 images, 148 cracks):
+
+| Precision | Recall | F1 | mAP@0.5 | mAP@0.5:0.95 |
+|---|---|---|---|---|
+| 0.686 | 0.620 | 0.651 | 0.606 | 0.392 |
+
+This is a crack-only pipeline check, not the final model. `weights/best.pt` is currently this pilot model, so the app only detects cracks until the full model replaces it.
 
 ## Deploy to Streamlit Cloud
 
@@ -60,7 +66,7 @@ merge_datasets.py       dataset merging and label conversion
 test_merge_datasets.py  tests for the merger
 sources.yaml            which datasets to merge and how their classes map
 train.ipynb             GPU training and evaluation
-weights/best.pt         trained model used by the app
+weights/best.pt         model used by the app (pilot crack model for now)
 ```
 
 ## Datasets
