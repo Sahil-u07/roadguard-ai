@@ -56,7 +56,7 @@ This is a crack-only pipeline check, not the final model. `weights/best.pt` is c
 
 1. Sign in at [share.streamlit.io](https://share.streamlit.io) with GitHub.
 2. Create app → this repo, branch `main`, main file `app.py`, Python 3.11 (under Advanced settings).
-3. Deploy. `requirements.txt` installs the CPU build of PyTorch and `packages.txt` installs the system libraries OpenCV needs.
+3. Deploy. `requirements.txt` installs the CPU build of PyTorch and `packages.txt` installs the system libraries OpenCV needs (Ultralytics installs OpenCV itself).
 
 ## Project structure
 
