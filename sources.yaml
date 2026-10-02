@@ -1,0 +1,26 @@
+# Dataset merge config for merge_datasets.py.
+# Download each dataset, unzip it under raw/, then fill in each `map` with the class names
+# from that dataset's own data.yaml (YOLO) or <name> tags (VOC). Map a class to null to drop it.
+# The merger stops with an error if it meets a class name you have not mapped.
+
+classes: [Pothole, Crack, Severe-Crack, Speed-Bump]
+seed: 0
+
+sources:
+  - name: rad
+    path: raw/RAD
+    map: {}            # TODO: fill from raw/RAD/data.yaml
+
+  - name: indian
+    path: raw/IndianRoads
+    map: {}            # TODO: fill from raw/IndianRoads/data.yaml
+
+  - name: hbp
+    path: raw/HumpsBumpsPotholes
+    map: {}            # TODO: fill from raw/HumpsBumpsPotholes/data.yaml
+
+  - name: highrpd
+    path: raw/HighRPD
+    format: voc        # HighRPD ships Pascal-VOC xml; put the xml files in raw/HighRPD/labels
+    split: [0.7, 0.2, 0.1]
+    map: {}            # TODO: fill from the <name> tags in the xml files
