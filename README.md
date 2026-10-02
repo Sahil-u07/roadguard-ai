@@ -91,7 +91,7 @@ Each dataset keeps its own license. Check it before redistributing images.
 - Kavish Jain (2427010427)
 - Tanmay Singh (2427010440)
 
-Supervisor: _to be added_
+Supervisor: Ms. Akanksha Mrinali
 
 ## License
 
