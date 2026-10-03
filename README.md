@@ -73,8 +73,8 @@ weights/best.pt         model used by the app (pilot crack model for now)
 
 - RAD: Road Anomaly Detection dataset, Mendeley Data. https://data.mendeley.com/datasets/8chk8vdn2z/2
 - HighRPD: a high-altitude drone dataset of road pavement distress, Data in Brief (2025). https://www.sciencedirect.com/science/article/pii/S235234092500109X
-- Indian Roads: _source link to be added_
-- Humps/Bumps/Potholes: _source link to be added_
+- Indian Roads: YOLO V8 Indian roads dataset, Roboflow Universe. https://universe.roboflow.com/object-detection-dp5wa/yolo-v8-indian-roads-dataset
+- Humps/Bumps/Potholes: Humps/Bumps & Potholes Detection, Roboflow Universe. https://universe.roboflow.com/detection-system/humps-bumps-potholes-detection
 - Crack-seg (used for the pilot run): Ultralytics. https://docs.ultralytics.com/datasets/segment/crack-seg/
 
 Each dataset keeps its own license. Check it before redistributing images.
