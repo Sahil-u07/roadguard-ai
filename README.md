@@ -81,15 +81,10 @@ Each dataset keeps its own license. Check it before redistributing images.
 
 ## Acknowledgements
 
-- [collabdoor/Road-Anomaly-Detection](https://github.com/collabdoor/Road-Anomaly-Detection) (Apache-2.0), whose project and [demo video](https://www.youtube.com/watch?v=W_SFcuZuRBE) inspired this one and suggested the four source datasets. No code, model weights or results from that repository are used here.
 - [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics)
 - [Streamlit](https://streamlit.io), [OpenCV](https://opencv.org)
 
-## Team
 
-- Sahil Lenka (2427010391)
-- Kavish Jain (2427010427)
-- Tanmay Singh (2427010440)
 
 Supervisor: Ms. Akanksha Mrinali
 
