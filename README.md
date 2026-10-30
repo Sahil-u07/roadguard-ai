@@ -6,28 +6,29 @@ PBL-III (AIM3170) project, Department of AIML, Manipal University Jaipur, 2026.
 
 **Live demo:** _coming soon (Streamlit Cloud)_
 
-## Status (mid-term, October 2026)
+## Status (November 2026)
 
 | Part | Status |
 |---|---|
 | Dataset merge pipeline (YOLO + Pascal-VOC sources, class remapping, splitting) | Done, tested |
-| Streamlit app (image and video upload) | Done |
+| Streamlit app (image upload, video upload, camera photo) | Done |
 | Training and evaluation notebook (Kaggle/Colab GPU) | Done |
 | Pilot model on a public crack dataset (CPU) | Done, see [Pilot results](#pilot-results) |
 | Full training on the merged dataset | In progress |
-| Flask interface, live webcam stream | Planned for end-term |
+| Flask interface (image upload) | Done, tested |
 
 ## How it works
 
 1. **Merge.** Every dataset names its classes differently (`pothole`, `Potholes`, `D40`...). `merge_datasets.py` maps each source's classes onto one list (`Pothole`, `Crack`, `Severe-Crack`, `Speed-Bump`), converts Pascal-VOC boxes and segmentation polygons to YOLO boxes, prefixes file names with the source name so nothing is overwritten, and splits sources that have no split 70/20/10. Any class you forget to map stops the merge with an error instead of being silently dropped.
 2. **Train.** `train.ipynb` fine-tunes a COCO-pretrained YOLOv8 on the merged data (transfer learning), then evaluates `best.pt` on the held-out test split and saves the metrics and confusion matrix.
-3. **Detect.** `app.py` loads `weights/best.pt` and runs it on uploaded images or videos.
+3. **Detect.** `detector.py` loads `weights/best.pt` and runs it on a frame. Both front ends use it: `app.py` (Streamlit: image, video, camera) and `flask_app.py` (Flask: image upload).
 
 ## Run it locally
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+streamlit run app.py      # Streamlit app on http://localhost:8501
+python flask_app.py       # Flask app on http://localhost:5000
 ```
 
 The app needs a trained model at `weights/best.pt`.
@@ -61,7 +62,10 @@ This is a crack-only pipeline check, not the final model. `weights/best.pt` is c
 ## Project structure
 
 ```
-app.py                  Streamlit demo
+app.py                  Streamlit app (image, video, camera)
+flask_app.py            Flask app (image upload)
+detector.py             model loading and detection shared by both apps
+test_flask_app.py       tests for the Flask app
 merge_datasets.py       dataset merging and label conversion
 test_merge_datasets.py  tests for the merger
 sources.yaml            which datasets to merge and how their classes map
