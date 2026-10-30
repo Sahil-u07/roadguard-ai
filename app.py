@@ -6,22 +6,22 @@ from pathlib import Path
 import cv2
 import numpy as np
 import streamlit as st
-from ultralytics import YOLO
 
-WEIGHTS = Path(__file__).parent / "weights" / "best.pt"
+from detector import WEIGHTS, detect, load_model
 
 st.set_page_config(page_title="RoadGuard AI", page_icon="🛣️", layout="wide")
+load_model = st.cache_resource(load_model)
 
 
-@st.cache_resource
-def load_model():
-    return YOLO(str(WEIGHTS))
-
-
-def detect(model, frame, conf):
-    """Run YOLOv8 on one BGR frame. Returns the annotated frame and a count of detections per class."""
-    result = model.predict(frame, conf=conf, verbose=False)[0]
-    return result.plot(), Counter(result.names[int(c)] for c in result.boxes.cls)
+def show_detections(data):
+    """Decode uploaded image bytes, run detection and show the result."""
+    frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if frame is None:
+        st.error("Could not read that image.")
+        return
+    annotated, counts = detect(model, frame, conf)
+    st.image(annotated, channels="BGR")
+    st.write(dict(counts) if counts else "No anomalies detected.")
 
 
 st.title("RoadGuard AI")
@@ -35,18 +35,17 @@ model = load_model()
 conf = st.sidebar.slider("Confidence threshold", 0.05, 0.95, 0.25, 0.05)
 st.sidebar.write("Classes:", ", ".join(model.names.values()))
 
-image_tab, video_tab = st.tabs(["Image", "Video"])
+image_tab, video_tab, camera_tab = st.tabs(["Image", "Video", "Camera"])
 
 with image_tab:
     upload = st.file_uploader("Upload a road image", type=["jpg", "jpeg", "png"])
     if upload:
-        frame = cv2.imdecode(np.frombuffer(upload.read(), np.uint8), cv2.IMREAD_COLOR)
-        if frame is None:
-            st.error("Could not read that image.")
-        else:
-            annotated, counts = detect(model, frame, conf)
-            st.image(annotated, channels="BGR")
-            st.write(dict(counts) if counts else "No anomalies detected.")
+        show_detections(upload.read())
+
+with camera_tab:
+    shot = st.camera_input("Take a photo of the road")
+    if shot:
+        show_detections(shot.getvalue())
 
 with video_tab:
     upload = st.file_uploader("Upload a road video", type=["mp4", "avi", "mov", "mkv"])
