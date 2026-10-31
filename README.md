@@ -14,6 +14,7 @@ PBL-III (AIM3170) project, Department of AIML, Manipal University Jaipur, 2026.
 | Streamlit app (image upload, video upload with annotated video download, camera photo) | Done |
 | Training and evaluation notebook (Kaggle/Colab GPU) | Done |
 | Pilot model on a public crack dataset (CPU) | Done, see [Pilot results](#pilot-results) |
+| Pothole + crack model (CPU), used by the app now | Done, see [Current model](#current-model) |
 | Full training on the merged dataset | In progress |
 | Flask interface (image upload) | Done, tested |
 
@@ -43,6 +44,18 @@ The app needs a trained model at `weights/best.pt`.
 
 Tests: `pip install pytest && pytest`
 
+## Current model
+
+`weights/best.pt` is a YOLOv8n that detects **Pothole** and **Crack**. We merged the Ultralytics Crack-seg dataset and a public pothole dataset ([michelpf/dataset-pothole](https://github.com/michelpf/dataset-pothole), originally from Kaggle) with `merge_datasets.py`, then trained on a CPU for 30 epochs at 416 px (about 4.9 hours, 5,045 training images). The pothole validation split is grouped by photo, so Roboflow-augmented copies of one photo never land in both train and valid. Test split (533 images, 1,118 objects):
+
+| Class | Precision | Recall | mAP@0.5 | mAP@0.5:0.95 |
+|---|---|---|---|---|
+| All | 0.752 | 0.675 | 0.714 | 0.461 |
+| Pothole | 0.741 | 0.682 | 0.729 | 0.423 |
+| Crack | 0.763 | 0.669 | 0.698 | 0.499 |
+
+F1 is 0.712. On the same crack test images the pilot model below scored mAP@0.5 0.606, so this model is better at cracks too. Inference took about 29 ms per image on a 4-core CPU. Speed bumps and severe cracks need the full run of `train.ipynb` on a GPU.
+
 ## Pilot results
 
 To test the whole pipeline before training on the merged data, we passed the public [Ultralytics Crack-seg](https://docs.ultralytics.com/datasets/segment/crack-seg/) dataset through `merge_datasets.py` and fine-tuned YOLOv8n on a CPU: 15 epochs, 1,115 training images (30%), 416 px, about 20 minutes. Test split (112 images, 148 cracks):
@@ -51,7 +64,7 @@ To test the whole pipeline before training on the merged data, we passed the pub
 |---|---|---|---|---|
 | 0.686 | 0.620 | 0.651 | 0.606 | 0.392 |
 
-This is a crack-only pipeline check, not the final model. `weights/best.pt` is currently this pilot model, so the app only detects cracks until the full model replaces it.
+This was a crack-only pipeline check. It has been replaced by the [current model](#current-model).
 
 ## Deploy to Streamlit Cloud
 
@@ -70,7 +83,7 @@ merge_datasets.py       dataset merging and label conversion
 test_merge_datasets.py  tests for the merger
 sources.yaml            which datasets to merge and how their classes map
 train.ipynb             GPU training and evaluation
-weights/best.pt         model used by the app (pilot crack model for now)
+weights/best.pt         model used by the app (Pothole + Crack)
 ```
 
 ## Datasets
@@ -79,7 +92,8 @@ weights/best.pt         model used by the app (pilot crack model for now)
 - HighRPD: a high-altitude drone dataset of road pavement distress, Data in Brief (2025). https://www.sciencedirect.com/science/article/pii/S235234092500109X
 - Indian Roads: YOLO V8 Indian roads dataset, Roboflow Universe. https://universe.roboflow.com/object-detection-dp5wa/yolo-v8-indian-roads-dataset
 - Humps/Bumps/Potholes: Humps/Bumps & Potholes Detection, Roboflow Universe. https://universe.roboflow.com/detection-system/humps-bumps-potholes-detection
-- Crack-seg (used for the pilot run): Ultralytics. https://docs.ultralytics.com/datasets/segment/crack-seg/
+- Pothole dataset: michelpf/dataset-pothole on GitHub, from the Kaggle dataset by Anugrah Akbar Praramadhan. https://github.com/michelpf/dataset-pothole
+- Crack-seg (pilot run and current model): Ultralytics. https://docs.ultralytics.com/datasets/segment/crack-seg/
 
 Each dataset keeps its own license. Check it before redistributing images.
 
