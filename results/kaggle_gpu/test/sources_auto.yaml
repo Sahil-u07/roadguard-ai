@@ -1,0 +1,13 @@
+classes:
+- Pothole
+- Crack
+seed: 0
+sources:
+- name: crackseg
+  path: raw/CrackSeg
+  map:
+    crack: Crack
+- name: potholes
+  path: raw/Potholes
+  map:
+    pothole: Pothole
