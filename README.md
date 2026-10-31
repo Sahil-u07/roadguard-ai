@@ -56,6 +56,8 @@ Tests: `pip install pytest && pytest`
 
 F1 is 0.712. On the same crack test images the pilot model below scored mAP@0.5 0.606, so this model is better at cracks too. Inference took about 29 ms per image on a 4-core CPU. Speed bumps and severe cracks need the full run of `train.ipynb` on a GPU.
 
+We also trained YOLOv8s at 640 px on a Kaggle T4 GPU (136 epochs) with the same data. On the same test split it scored mAP@0.5 0.717 and mAP@0.5:0.95 0.453, about the same as the YOLOv8n above, but it took 264 ms per image on our CPU instead of 25 ms. We kept YOLOv8n because the app runs on a CPU.
+
 ## Pilot results
 
 To test the whole pipeline before training on the merged data, we passed the public [Ultralytics Crack-seg](https://docs.ultralytics.com/datasets/segment/crack-seg/) dataset through `merge_datasets.py` and fine-tuned YOLOv8n on a CPU: 15 epochs, 1,115 training images (30%), 416 px, about 20 minutes. Test split (112 images, 148 cracks):
