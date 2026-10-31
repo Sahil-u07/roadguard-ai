@@ -11,7 +11,7 @@ PBL-III (AIM3170) project, Department of AIML, Manipal University Jaipur, 2026.
 | Part | Status |
 |---|---|
 | Dataset merge pipeline (YOLO + Pascal-VOC sources, class remapping, splitting) | Done, tested |
-| Streamlit app (image upload, video upload, camera photo) | Done |
+| Streamlit app (image upload, video upload with annotated video download, camera photo) | Done |
 | Training and evaluation notebook (Kaggle/Colab GPU) | Done |
 | Pilot model on a public crack dataset (CPU) | Done, see [Pilot results](#pilot-results) |
 | Full training on the merged dataset | In progress |

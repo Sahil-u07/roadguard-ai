@@ -51,11 +51,15 @@ with video_tab:
     upload = st.file_uploader("Upload a road video", type=["mp4", "avi", "mov", "mkv"])
     stride = st.slider("Process every Nth frame", 1, 10, 3, help="Higher is faster on CPU")
     if upload and st.button("Run detection"):
-        with tempfile.NamedTemporaryFile(suffix=Path(upload.name).suffix) as tmp:
-            tmp.write(upload.read())
-            tmp.flush()
-            cap = cv2.VideoCapture(tmp.name)
-            view, totals, i = st.empty(), Counter(), 0
+        # A temp folder, not NamedTemporaryFile: on Windows OpenCV cannot open a file Python still holds open.
+        with tempfile.TemporaryDirectory() as tmp:
+            src, dst = Path(tmp) / ("input" + Path(upload.name).suffix), Path(tmp) / "output.mp4"
+            src.write_bytes(upload.read())
+            cap = cv2.VideoCapture(str(src))
+            fps = cap.get(cv2.CAP_PROP_FPS) or 30
+            total = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            progress, view = st.progress(0.0), st.empty()
+            totals, i, writer, video = Counter(), 0, None, None
             while True:
                 ok, frame = cap.read()
                 if not ok:
@@ -64,6 +68,19 @@ with video_tab:
                     annotated, counts = detect(model, frame, conf)
                     totals += counts
                     view.image(annotated, channels="BGR")
+                    if writer is None:
+                        h, w = annotated.shape[:2]
+                        # fps / stride keeps the saved video at real-time speed
+                        writer = cv2.VideoWriter(str(dst), cv2.VideoWriter_fourcc(*"mp4v"), fps / stride, (w, h))
+                    writer.write(annotated)
+                    if total > 0:
+                        progress.progress(min(i / total, 1.0))
                 i += 1
             cap.release()
+            if writer:
+                writer.release()
+                video = dst.read_bytes()
+        progress.progress(1.0)
         st.write("Detections across processed frames:", dict(totals) if totals else "none")
+        if video:
+            st.download_button("Download annotated video", video, "roadguard_output.mp4", "video/mp4")
