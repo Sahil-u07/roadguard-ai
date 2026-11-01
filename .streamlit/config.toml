@@ -11,4 +11,4 @@ baseRadius = "medium"
 
 [server]
 # Phone videos are often over Streamlit's 200 MB default. Long videos are better run locally: the free cloud server has little memory.
-maxUploadSize = 350
+maxUploadSize = 300
