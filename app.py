@@ -1,4 +1,6 @@
 """RoadGuard AI - Streamlit demo. Run with: streamlit run app.py"""
+import shutil
+import subprocess
 import tempfile
 from collections import Counter
 from pathlib import Path
@@ -7,35 +9,63 @@ import cv2
 import numpy as np
 import streamlit as st
 
-from detector import WEIGHTS, detect, load_model
+from detector import WEIGHTS, count, detect, load_model, predict
+
+MAX_WIDTH = 1280  # bigger video frames are scaled down first; the model sees 416 px anyway
 
 st.set_page_config(page_title="RoadGuard AI", page_icon="🛣️", layout="wide")
 load_model = st.cache_resource(load_model)
 
 
+def show_counts(counts):
+    """One metric per detected class, or a clear 'nothing found' message."""
+    if not counts:
+        st.success("No anomalies detected.")
+        return
+    for col, (name, n) in zip(st.columns(len(counts)), sorted(counts.items())):
+        col.metric(name, n)
+
+
 def show_detections(data):
-    """Decode uploaded image bytes, run detection and show the result."""
+    """Decode uploaded image bytes, run detection and show the original next to the result."""
     frame = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
     if frame is None:
         st.error("Could not read that image.")
         return
     annotated, counts = detect(model, frame, conf)
-    st.image(annotated, channels="BGR")
-    st.write(dict(counts) if counts else "No anomalies detected.")
+    left, right = st.columns(2)
+    left.image(frame, channels="BGR", caption="Original", width="stretch")
+    right.image(annotated, channels="BGR", caption="Detected", width="stretch")
+    show_counts(counts)
 
 
-st.title("RoadGuard AI")
-st.caption("Real-time road anomaly detection with YOLOv8")
+def to_h264(src, dst):
+    """Browsers cannot play OpenCV's mp4v video, so re-encode it with ffmpeg when ffmpeg is installed."""
+    if not shutil.which("ffmpeg"):
+        return False
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-c:v", "libx264", "-preset", "veryfast",
+           "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(dst)]
+    return subprocess.run(cmd).returncode == 0
+
+
+st.title("🛣️ RoadGuard AI")
+st.caption("Finds potholes and cracks in road photos and videos with a YOLOv8 model.")
 
 if not WEIGHTS.exists():
     st.error("No trained model at weights/best.pt yet. Train one with train.ipynb and commit it.")
     st.stop()
 
 model = load_model()
-conf = st.sidebar.slider("Confidence threshold", 0.05, 0.95, 0.25, 0.05)
-st.sidebar.write("Classes:", ", ".join(model.names.values()))
+with st.sidebar:
+    st.header("Settings")
+    conf = st.slider("Confidence threshold", 0.05, 0.95, 0.25, 0.05,
+                     help="Only boxes the model is at least this sure about are shown. Raise it if you see false boxes.")
+    st.header("Model")
+    st.write("Detects:", ", ".join(model.names.values()))
+    st.header("How to use")
+    st.markdown("1. Pick a tab.\n2. Upload a road photo or video, or take a photo.\n3. Boxes and counts appear below.")
 
-image_tab, video_tab, camera_tab = st.tabs(["Image", "Video", "Camera"])
+image_tab, video_tab, camera_tab = st.tabs(["📷 Image", "🎬 Video", "🤳 Camera"])
 
 with image_tab:
     upload = st.file_uploader("Upload a road image", type=["jpg", "jpeg", "png"])
@@ -49,38 +79,60 @@ with camera_tab:
 
 with video_tab:
     upload = st.file_uploader("Upload a road video", type=["mp4", "avi", "mov", "mkv"])
-    stride = st.slider("Process every Nth frame", 1, 10, 3, help="Higher is faster on CPU")
-    if upload and st.button("Run detection"):
+    stride = st.slider("Run the model on every Nth frame", 1, 5, 2,
+                       help="1 is the most accurate. Higher is faster; boxes are kept on the frames in between, "
+                            "so the output video stays smooth.")
+    if upload and st.button("Run detection", type="primary"):
         # A temp folder, not NamedTemporaryFile: on Windows OpenCV cannot open a file Python still holds open.
         with tempfile.TemporaryDirectory() as tmp:
-            src, dst = Path(tmp) / ("input" + Path(upload.name).suffix), Path(tmp) / "output.mp4"
+            src, raw, out = (Path(tmp) / n for n in ("input" + Path(upload.name).suffix, "raw.mp4", "output.mp4"))
             src.write_bytes(upload.read())
             cap = cv2.VideoCapture(str(src))
             fps = cap.get(cv2.CAP_PROP_FPS) or 30
-            total = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-            progress, view = st.progress(0.0), st.empty()
-            totals, i, writer, video = Counter(), 0, None, None
+            total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            progress, view = st.progress(0.0, "Starting..."), st.empty()
+            seen, peak, result, writer, i = Counter(), Counter(), None, None, 0
             while True:
                 ok, frame = cap.read()
                 if not ok:
                     break
+                if frame.shape[1] > MAX_WIDTH:
+                    frame = cv2.resize(frame, (MAX_WIDTH, round(frame.shape[0] * MAX_WIDTH / frame.shape[1])))
                 if i % stride == 0:
-                    annotated, counts = detect(model, frame, conf)
-                    totals += counts
-                    view.image(annotated, channels="BGR")
-                    if writer is None:
-                        h, w = annotated.shape[:2]
-                        # fps / stride keeps the saved video at real-time speed
-                        writer = cv2.VideoWriter(str(dst), cv2.VideoWriter_fourcc(*"mp4v"), fps / stride, (w, h))
-                    writer.write(annotated)
+                    result = predict(model, frame, conf)
+                    for name, n in count(result).items():
+                        seen[name] += stride
+                        peak[name] = max(peak[name], n)
+                else:
+                    result.orig_img = frame  # keep the last boxes on this frame so the output does not flicker
+                annotated = result.plot()
+                if writer is None:
+                    h, w = annotated.shape[:2]
+                    writer = cv2.VideoWriter(str(raw), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+                writer.write(annotated)
+                if i % (stride * 5) == 0:  # refreshing the preview on every frame slows the page down
+                    view.image(annotated, channels="BGR", width="stretch")
                     if total > 0:
-                        progress.progress(min(i / total, 1.0))
+                        progress.progress(min(i / total, 1.0), f"Frame {i} of {total}")
                 i += 1
             cap.release()
-            if writer:
-                writer.release()
-                video = dst.read_bytes()
-        progress.progress(1.0)
-        st.write("Detections across processed frames:", dict(totals) if totals else "none")
-        if video:
-            st.download_button("Download annotated video", video, "roadguard_output.mp4", "video/mp4")
+            if writer is None:
+                progress.empty()
+                st.error("Could not read that video.")
+                st.stop()
+            writer.release()
+            playable = to_h264(raw, out)
+            video = (out if playable else raw).read_bytes()
+        progress.progress(1.0, f"Done: {i} frames")
+        view.empty()
+        if playable:
+            st.video(video)
+        else:
+            st.info("Install ffmpeg to play the result here. You can still download it below.")
+        if seen:
+            st.write("Seconds of video in which each class was seen, and the most seen in one frame:")
+            for col, name in zip(st.columns(len(seen)), sorted(seen)):
+                col.metric(f"{name} (up to {peak[name]} in one frame)", f"{seen[name] / fps:.1f} s")
+        else:
+            st.success("No anomalies detected.")
+        st.download_button("Download annotated video", video, "roadguard_output.mp4", "video/mp4")
