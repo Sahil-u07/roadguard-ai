@@ -1,3 +1,10 @@
+# Palette and font from the UI/UX Pro Max "Analytics Dashboard" profile: blue data, amber highlights, Inter.
 [theme]
 base = "light"
-primaryColor = "#E8A100"
+primaryColor = "#1E40AF"
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#E9EEF6"
+textColor = "#0F172A"
+borderColor = "#DBEAFE"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
+baseRadius = "medium"

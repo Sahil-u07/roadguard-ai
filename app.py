@@ -13,7 +13,7 @@ from detector import WEIGHTS, count, detect, load_model, predict
 
 MAX_WIDTH = 1280  # bigger video frames are scaled down first; the model sees 416 px anyway
 
-st.set_page_config(page_title="RoadGuard AI", page_icon="🛣️", layout="wide")
+st.set_page_config(page_title="RoadGuard AI", page_icon=":material/add_road:", layout="wide")
 load_model = st.cache_resource(load_model)
 
 
@@ -32,7 +32,8 @@ def show_detections(data):
     if frame is None:
         st.error("Could not read that image.")
         return
-    annotated, counts = detect(model, frame, conf)
+    with st.spinner("Detecting..."):
+        annotated, counts = detect(model, frame, conf)
     left, right = st.columns(2)
     left.image(frame, channels="BGR", caption="Original", width="stretch")
     right.image(annotated, channels="BGR", caption="Detected", width="stretch")
@@ -48,8 +49,8 @@ def to_h264(src, dst):
     return subprocess.run(cmd).returncode == 0
 
 
-st.title("🛣️ RoadGuard AI")
-st.caption("Finds potholes and cracks in road photos and videos with a YOLOv8 model.")
+st.title(":material/add_road: RoadGuard AI")
+st.caption("Finds road damage in photos and videos with a YOLOv8 model, so it can be reported and repaired early.")
 
 if not WEIGHTS.exists():
     st.error("No trained model at weights/best.pt yet. Train one with train.ipynb and commit it.")
@@ -57,15 +58,16 @@ if not WEIGHTS.exists():
 
 model = load_model()
 with st.sidebar:
-    st.header("Settings")
+    st.subheader(":material/tune: Settings")
     conf = st.slider("Confidence threshold", 0.05, 0.95, 0.25, 0.05,
                      help="Only boxes the model is at least this sure about are shown. Raise it if you see false boxes.")
-    st.header("Model")
-    st.write("Detects:", ", ".join(model.names.values()))
-    st.header("How to use")
+    st.subheader(":material/neurology: Model detects")
+    for name in model.names.values():
+        st.badge(name, icon=":material/warning:", color="orange")
+    st.subheader(":material/help: How to use")
     st.markdown("1. Pick a tab.\n2. Upload a road photo or video, or take a photo.\n3. Boxes and counts appear below.")
 
-image_tab, video_tab, camera_tab = st.tabs(["📷 Image", "🎬 Video", "🤳 Camera"])
+image_tab, video_tab, camera_tab = st.tabs([":material/image: Image", ":material/movie: Video", ":material/photo_camera: Camera"])
 
 with image_tab:
     upload = st.file_uploader("Upload a road image", type=["jpg", "jpeg", "png"])
