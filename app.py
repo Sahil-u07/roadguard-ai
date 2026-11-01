@@ -11,7 +11,11 @@ import streamlit as st
 
 from detector import WEIGHTS, count, detect, load_model, predict
 
-MAX_WIDTH = 1280  # bigger video frames are scaled down first; the model sees 416 px anyway
+# Streamlit Community Cloud runs apps from /mount/src. Its free server throttles apps that use too much CPU,
+# so there we keep videos short and small. On a laptop the full video is processed at up to 1280 px.
+ON_CLOUD = Path("/mount/src").exists()
+MAX_WIDTH = 640 if ON_CLOUD else 1280  # bigger frames are scaled down first; the model sees 416 px anyway
+MAX_SECONDS = 60 if ON_CLOUD else None
 
 st.set_page_config(page_title="RoadGuard AI", page_icon=":material/add_road:", layout="wide")
 load_model = st.cache_resource(load_model)
@@ -44,7 +48,7 @@ def to_h264(src, dst):
     """Browsers cannot play OpenCV's mp4v video, so re-encode it with ffmpeg when ffmpeg is installed."""
     if not shutil.which("ffmpeg"):
         return False
-    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-c:v", "libx264", "-preset", "veryfast",
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-c:v", "libx264", "-preset", "ultrafast",
            "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(dst)]
     return subprocess.run(cmd).returncode == 0
 
@@ -81,9 +85,12 @@ with camera_tab:
 
 with video_tab:
     upload = st.file_uploader("Upload a road video", type=["mp4", "avi", "mov", "mkv"])
-    stride = st.slider("Run the model on every Nth frame", 1, 5, 2,
+    stride = st.slider("Run the model on every Nth frame", 1, 5, 3 if ON_CLOUD else 2,
                        help="1 is the most accurate. Higher is faster; boxes are kept on the frames in between, "
                             "so the output video stays smooth.")
+    if ON_CLOUD:
+        st.caption(f"On this free online server only the first {MAX_SECONDS} seconds are processed, at {MAX_WIDTH} px. "
+                   "Run the app on a laptop for full-length, full-size videos.")
     if upload and st.button("Run detection", type="primary"):
         # A temp folder, not NamedTemporaryFile: on Windows OpenCV cannot open a file Python still holds open.
         with tempfile.TemporaryDirectory() as tmp:
@@ -92,11 +99,14 @@ with video_tab:
             cap = cv2.VideoCapture(str(src))
             fps = cap.get(cv2.CAP_PROP_FPS) or 30
             total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            limit = round(MAX_SECONDS * fps) if MAX_SECONDS else None
+            if limit and total > limit:
+                total = limit
             progress, view = st.progress(0.0, "Starting..."), st.empty()
             seen, peak, result, writer, i = Counter(), Counter(), None, None, 0
             while True:
                 ok, frame = cap.read()
-                if not ok:
+                if not ok or (limit and i >= limit):
                     break
                 if frame.shape[1] > MAX_WIDTH:
                     frame = cv2.resize(frame, (MAX_WIDTH, round(frame.shape[0] * MAX_WIDTH / frame.shape[1])))
