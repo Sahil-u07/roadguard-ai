@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import streamlit as st
 
-from detector import WEIGHTS, count, detect, load_model, predict
+from detector import CONF, WEIGHTS, count, load_model, pothole_sizes, predict, steady
 
 # Streamlit Community Cloud runs apps from /mount/src. Its free server throttles apps that use too much CPU,
 # so there we keep videos short and small. On a laptop the full video is processed at up to 1280 px.
@@ -37,11 +37,16 @@ def show_detections(data):
         st.error("Could not read that image.")
         return
     with st.spinner("Detecting..."):
-        annotated, counts = detect(model, frame, conf)
+        result = predict(model, frame, conf)
     left, right = st.columns(2)
     left.image(frame, channels="BGR", caption="Original", width="stretch")
-    right.image(annotated, channels="BGR", caption="Detected", width="stretch")
-    show_counts(counts)
+    right.image(result.plot(), channels="BGR", caption="Detected", width="stretch")
+    show_counts(count(result))
+    sizes = pothole_sizes(result, ground_width)
+    if sizes:
+        st.write(f"Estimated pothole size, if the photo covers about {ground_width} m of road across "
+                 "(match each row to a box by its confidence):")
+        st.dataframe(sizes, hide_index=True)
 
 
 def to_h264(src, dst):
@@ -63,8 +68,12 @@ if not WEIGHTS.exists():
 model = load_model()
 with st.sidebar:
     st.subheader(":material/tune: Settings")
-    conf = st.slider("Confidence threshold", 0.05, 0.95, 0.25, 0.05,
+    conf = st.slider("Confidence threshold", 0.05, 0.95, CONF, 0.05,
                      help="Only boxes the model is at least this sure about are shown. Raise it if you see false boxes.")
+    ground_width = st.number_input("Road width the photo covers (m)", 0.1, 50.0, 2.0, 0.1,
+                                   help="Used to turn pothole boxes into centimetres. A phone held at chest height "
+                                        "looking straight down covers about 2 m. Angled photos make the estimate less "
+                                        "accurate. Depth cannot be measured from a photo.")
     st.subheader(":material/neurology: Model detects")
     for name in model.names.values():
         st.badge(name, icon=":material/warning:", color="orange")
@@ -103,7 +112,7 @@ with video_tab:
             if limit and total > limit:
                 total = limit
             progress, view = st.progress(0.0, "Starting..."), st.empty()
-            seen, peak, result, writer, i = Counter(), Counter(), None, None, 0
+            seen, peak, result, previous, writer, i = Counter(), Counter(), None, None, None, 0
             while True:
                 ok, frame = cap.read()
                 if not ok or (limit and i >= limit):
@@ -111,7 +120,8 @@ with video_tab:
                 if frame.shape[1] > MAX_WIDTH:
                     frame = cv2.resize(frame, (MAX_WIDTH, round(frame.shape[0] * MAX_WIDTH / frame.shape[1])))
                 if i % stride == 0:
-                    result = predict(model, frame, conf)
+                    found = predict(model, frame, conf)
+                    result, previous = steady(found, previous), found  # drop boxes that last only one run
                     for name, n in count(result).items():
                         seen[name] += stride
                         peak[name] = max(peak[name], n)

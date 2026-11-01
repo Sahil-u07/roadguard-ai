@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from flask import Flask, render_template_string, request
 
-from detector import WEIGHTS, detect, load_model
+from detector import CONF, WEIGHTS, detect, load_model
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # Flask rejects uploads over 10 MB with 413
@@ -43,13 +43,13 @@ PAGE = """<!doctype html>
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "GET":
-        return render_template_string(PAGE, conf=0.25)
+        return render_template_string(PAGE, conf=CONF)
     if model is None:
-        return render_template_string(PAGE, conf=0.25, error="No trained model at weights/best.pt yet."), 503
+        return render_template_string(PAGE, conf=CONF, error="No trained model at weights/best.pt yet."), 503
     try:
-        conf = min(max(float(request.form.get("conf", 0.25)), 0.05), 0.95)
+        conf = min(max(float(request.form.get("conf", CONF)), 0.05), 0.95)
     except ValueError:
-        conf = 0.25
+        conf = CONF
     upload = request.files.get("image")
     frame = cv2.imdecode(np.frombuffer(upload.read(), np.uint8), cv2.IMREAD_COLOR) if upload else None
     if frame is None:
