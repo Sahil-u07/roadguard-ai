@@ -4,7 +4,7 @@ Real-time road anomaly detection with YOLOv8. RoadGuard AI finds potholes, crack
 
 PBL-III (AIM3170) project, Department of AIML, Manipal University Jaipur, 2026.
 
-**Live demo:** _coming soon (Streamlit Cloud)_
+**Live demo:** https://roadguard-ai-sahil.streamlit.app
 
 ## Status (November 2026)
 
