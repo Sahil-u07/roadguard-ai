@@ -2,6 +2,7 @@
 from collections import Counter
 from pathlib import Path
 
+import cv2
 from ultralytics import YOLO
 
 WEIGHTS = Path(__file__).parent / "weights" / "best.pt"
@@ -28,7 +29,23 @@ def count(result):
 def detect(model, frame, conf=CONF):
     """Run YOLOv8 on one BGR frame. Returns the annotated frame and a count of detections per class."""
     result = predict(model, frame, conf)
-    return result.plot(), count(result)
+    return draw(result), count(result)
+
+
+def draw(result, tag="M1", color=(0, 0, 255)):
+    """Draw each box thin in `color` (BGR, red by default) with a white label like "M1:Pothole 0.62"."""
+    img = result.orig_img.copy()
+    scale = max(0.5, img.shape[1] / 1920 * 0.9)  # same text size relative to the frame on small and large images
+    thick = max(1, round(scale * 2))
+    for (x1, y1, x2, y2), c, k in zip(result.boxes.xyxy.int().tolist(), result.boxes.conf.tolist(),
+                                      result.boxes.cls.int().tolist()):
+        label = f"{tag}:{result.names[k]} {c:.2f}"
+        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
+        top = max(y1, h + 8)  # keep the label inside the image for boxes at the top edge
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, thick)
+        cv2.rectangle(img, (x1, top - h - 8), (x1 + w + 6, top), (255, 255, 255), -1)
+        cv2.putText(img, label, (x1 + 3, top - 5), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), 1, cv2.LINE_AA)
+    return img
 
 
 def road_only(result, min_y=0.38):

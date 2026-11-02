@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import streamlit as st
 
-from detector import CONF, VIDEO_CONF, WEIGHTS, count, load_model, pothole_sizes, predict, road_only
+from detector import CONF, VIDEO_CONF, WEIGHTS, count, draw, load_model, pothole_sizes, predict, road_only
 
 # Streamlit Community Cloud runs apps from /mount/src. Its free server throttles apps that use too much CPU,
 # so there we keep videos to the first minute and at most Full HD. On a laptop the full video keeps its own size.
@@ -43,7 +43,7 @@ def show_detections(data):
         result = predict(model, frame, conf)
     left, right = st.columns(2)
     left.image(frame, channels="BGR", caption="Original", width="stretch")
-    right.image(result.plot(), channels="BGR", caption="Detected", width="stretch")
+    right.image(draw(result), channels="BGR", caption="Detected", width="stretch")
     show_counts(count(result))
     sizes = pothole_sizes(result, ground_width)
     if sizes:
@@ -144,7 +144,7 @@ with video_tab:
                         peak[name] = max(peak[name], n)
                 else:
                     result.orig_img = frame  # keep the last boxes on this frame so the output does not flicker
-                annotated = result.plot(conf=False)  # class name only keeps the video readable
+                annotated = draw(result)
                 if writer is None:
                     write, close = writer = video_writer(out, fps, annotated.shape[1], annotated.shape[0])
                 write(annotated)
