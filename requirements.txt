@@ -4,4 +4,3 @@ torchvision
 ultralytics
 streamlit
 flask
-lap

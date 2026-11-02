@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import streamlit as st
 
-from detector import CONF, VIDEO_CONF, WEIGHTS, Tracker, count, load_model, pothole_sizes, predict
+from detector import CONF, VIDEO_CONF, WEIGHTS, count, load_model, pothole_sizes, predict, road_only
 
 # Streamlit Community Cloud runs apps from /mount/src. Its free server throttles apps that use too much CPU,
 # so there we keep videos to the first minute and at most Full HD. On a laptop the full video keeps its own size.
@@ -72,7 +72,7 @@ st.html("""<div class="rg-hero" role="img" aria-label="RoadGuard AI: a road with
   <div class="rg-road"></div><div class="rg-pothole"></div>
   <div class="rg-hero-text"><h1>RoadGuard AI</h1>
     <p>Finds road damage in photos and videos, so it can be reported and repaired early.</p>
-    <span class="rg-chip">YOLOv8</span><span class="rg-chip">ByteTrack tracking</span><span class="rg-chip">Pothole + Crack</span>
+    <span class="rg-chip">YOLOv8</span><span class="rg-chip">Photos + Video + Camera</span><span class="rg-chip">Pothole + Crack</span>
   </div></div>""")
 
 if not WEIGHTS.exists():
@@ -109,8 +109,8 @@ with camera_tab:
 with video_tab:
     upload = st.file_uploader("Upload a road video", type=["mp4", "avi", "mov", "mkv"])
     video_conf = st.slider("Video confidence threshold", 0.05, 0.95, VIDEO_CONF, 0.05,
-                           help="Lower finds more potholes. Videos can go lower than photos, because a box is only "
-                                "shown once it is found in two model runs in a row.")
+                           help="Lower finds more potholes but shows more false boxes. Boxes in the top part of "
+                                "the frame (sky, buildings, far traffic) are always ignored.")
     rate = st.slider("Model runs per second of video", 2, 30, 6 if ON_CLOUD else 10,
                      help="Higher is more thorough but slower. Boxes are kept on the frames in between, "
                           "so the output video stays smooth at its own frame rate.")
@@ -130,7 +130,7 @@ with video_tab:
             if limit and total > limit:
                 total = limit
             progress, view = st.progress(0.0, "Starting..."), st.empty()
-            seen, peak, result, writer, i, tracker = Counter(), Counter(), None, None, 0, Tracker(video_conf, imgsz=VIDEO_IMGSZ)
+            seen, peak, result, writer, i = Counter(), Counter(), None, None, 0
             while True:
                 ok, frame = cap.read()
                 if not ok or (limit and i >= limit):
@@ -138,13 +138,13 @@ with video_tab:
                 if MAX_WIDTH and frame.shape[1] > MAX_WIDTH:
                     frame = cv2.resize(frame, (MAX_WIDTH, round(frame.shape[0] * MAX_WIDTH / frame.shape[1])))
                 if i % stride == 0:
-                    result = tracker(model, frame)
+                    result = road_only(predict(model, frame, video_conf, VIDEO_IMGSZ))
                     for name, n in count(result).items():
                         seen[name] += stride
                         peak[name] = max(peak[name], n)
                 else:
                     result.orig_img = frame  # keep the last boxes on this frame so the output does not flicker
-                annotated = result.plot(conf=False)  # label is the pothole's id and class; tracked scores can dip
+                annotated = result.plot(conf=False)  # class name only keeps the video readable
                 if writer is None:
                     write, close = writer = video_writer(out, fps, annotated.shape[1], annotated.shape[0])
                 write(annotated)
