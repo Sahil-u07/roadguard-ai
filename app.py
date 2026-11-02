@@ -9,12 +9,12 @@ import cv2
 import numpy as np
 import streamlit as st
 
-from detector import CONF, WEIGHTS, count, load_model, pothole_sizes, predict, steady
+from detector import CONF, WEIGHTS, Tracker, count, load_model, pothole_sizes, predict
 
 # Streamlit Community Cloud runs apps from /mount/src. Its free server throttles apps that use too much CPU,
-# so there we keep videos short and small. On a laptop the full video is processed at up to 1280 px.
+# so there we keep videos to the first minute and at most Full HD. On a laptop the full video keeps its own size.
 ON_CLOUD = Path("/mount/src").exists()
-MAX_WIDTH = 640 if ON_CLOUD else 1280  # bigger frames are scaled down first; the model sees 416 px anyway
+MAX_WIDTH = 1920 if ON_CLOUD else None
 MAX_SECONDS = 60 if ON_CLOUD else None
 
 st.set_page_config(page_title="RoadGuard AI", page_icon=":material/add_road:", layout="wide")
@@ -49,13 +49,19 @@ def show_detections(data):
         st.dataframe(sizes, hide_index=True)
 
 
-def to_h264(src, dst):
-    """Browsers cannot play OpenCV's mp4v video, so re-encode it with ffmpeg when ffmpeg is installed."""
-    if not shutil.which("ffmpeg"):
-        return False
-    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-c:v", "libx264", "-preset", "ultrafast",
-           "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(dst)]
-    return subprocess.run(cmd).returncode == 0
+def video_writer(path, fps, width, height):
+    """Returns write(frame) and close() -> True if the file plays in a browser.
+    With ffmpeg, frames go straight into one high-quality H.264 encode. Without it, OpenCV writes mp4v,
+    which is lower quality and which browsers cannot play, but it can still be downloaded."""
+    if shutil.which("ffmpeg"):
+        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{width}x{height}",
+               "-r", str(fps), "-i", "-", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",  # H.264 needs even sizes
+               "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+               "-movflags", "+faststart", str(path)]
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        return lambda frame: proc.stdin.write(frame.tobytes()), lambda: proc.stdin.close() or proc.wait() == 0
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
+    return writer.write, lambda: writer.release() or False
 
 
 st.title(":material/add_road: RoadGuard AI")
@@ -98,12 +104,12 @@ with video_tab:
                        help="1 is the most accurate. Higher is faster; boxes are kept on the frames in between, "
                             "so the output video stays smooth.")
     if ON_CLOUD:
-        st.caption(f"On this free online server only the first {MAX_SECONDS} seconds are processed, at {MAX_WIDTH} px. "
-                   "Run the app on a laptop for full-length, full-size videos.")
+        st.caption(f"On this free online server only the first {MAX_SECONDS} seconds are processed, at up to Full HD. "
+                   "Run the app on a laptop for full-length videos at their original size.")
     if upload and st.button("Run detection", type="primary"):
         # A temp folder, not NamedTemporaryFile: on Windows OpenCV cannot open a file Python still holds open.
         with tempfile.TemporaryDirectory() as tmp:
-            src, raw, out = (Path(tmp) / n for n in ("input" + Path(upload.name).suffix, "raw.mp4", "output.mp4"))
+            src, out = Path(tmp) / ("input" + Path(upload.name).suffix), Path(tmp) / "output.mp4"
             src.write_bytes(upload.read())
             cap = cv2.VideoCapture(str(src))
             fps = cap.get(cv2.CAP_PROP_FPS) or 30
@@ -112,26 +118,24 @@ with video_tab:
             if limit and total > limit:
                 total = limit
             progress, view = st.progress(0.0, "Starting..."), st.empty()
-            seen, peak, result, previous, writer, i = Counter(), Counter(), None, None, None, 0
+            seen, peak, result, writer, i, tracker = Counter(), Counter(), None, None, 0, Tracker(conf)
             while True:
                 ok, frame = cap.read()
                 if not ok or (limit and i >= limit):
                     break
-                if frame.shape[1] > MAX_WIDTH:
+                if MAX_WIDTH and frame.shape[1] > MAX_WIDTH:
                     frame = cv2.resize(frame, (MAX_WIDTH, round(frame.shape[0] * MAX_WIDTH / frame.shape[1])))
                 if i % stride == 0:
-                    found = predict(model, frame, conf)
-                    result, previous = steady(found, previous), found  # drop boxes that last only one run
+                    result = tracker(model, frame)
                     for name, n in count(result).items():
                         seen[name] += stride
                         peak[name] = max(peak[name], n)
                 else:
                     result.orig_img = frame  # keep the last boxes on this frame so the output does not flicker
-                annotated = result.plot()
+                annotated = result.plot(conf=False)  # label is the pothole's id and class; tracked scores can dip
                 if writer is None:
-                    h, w = annotated.shape[:2]
-                    writer = cv2.VideoWriter(str(raw), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
-                writer.write(annotated)
+                    write, close = writer = video_writer(out, fps, annotated.shape[1], annotated.shape[0])
+                write(annotated)
                 if i % (stride * 5) == 0:  # refreshing the preview on every frame slows the page down
                     view.image(annotated, channels="BGR", width="stretch")
                     if total > 0:
@@ -142,9 +146,8 @@ with video_tab:
                 progress.empty()
                 st.error("Could not read that video.")
                 st.stop()
-            writer.release()
-            playable = to_h264(raw, out)
-            video = (out if playable else raw).read_bytes()
+            playable = close()
+            video = out.read_bytes()
         progress.progress(1.0, f"Done: {i} frames")
         view.empty()
         if playable:

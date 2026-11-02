@@ -2,8 +2,11 @@
 from collections import Counter
 from pathlib import Path
 
+import torch
 from ultralytics import YOLO
-from ultralytics.utils.metrics import box_iou
+from ultralytics.trackers.byte_tracker import BYTETracker
+from ultralytics.utils import YAML, IterableSimpleNamespace
+from ultralytics.utils.checks import check_yaml
 
 WEIGHTS = Path(__file__).parent / "weights" / "best.pt"
 # Best F1 on the validation split was at 0.44. At the old 0.25 only about half the boxes on the test split were right.
@@ -30,13 +33,26 @@ def detect(model, frame, conf=CONF):
     return result.plot(), count(result)
 
 
-def steady(result, previous):
-    """Keep only boxes that overlap a same-class box from the previous model run on the video.
-    A box that shows up for a single frame is almost always a false alarm."""
-    if previous is None or not len(previous.boxes) or not len(result.boxes):
-        return result[:0]
-    same = result.boxes.cls[:, None] == previous.boxes.cls[None, :]
-    return result[((box_iou(result.boxes.xyxy, previous.boxes.xyxy) > 0.2) & same).any(1)]
+class Tracker:
+    """Follows each detection from one frame to the next (ByteTrack) so boxes in a video stay steady.
+    A box is shown only once it has been found in `min_hits` model runs, which removes one-off false alarms.
+    Weaker detections (down to 0.1) may keep an already confirmed box alive, so it does not flicker."""
+
+    def __init__(self, conf=CONF, min_hits=3):
+        cfg = IterableSimpleNamespace(**YAML.load(check_yaml("bytetrack.yaml")))
+        cfg.track_high_thresh = cfg.new_track_thresh = conf  # only confident boxes can start a new track
+        self.tracker, self.hits, self.min_hits = BYTETracker(cfg), Counter(), min_hits
+
+    def __call__(self, model, frame):
+        result = predict(model, frame, conf=0.1)
+        tracks = self.tracker.update(result.boxes.cpu().numpy(), frame)
+        if not len(tracks):
+            return result[:0]
+        result = result[tracks[:, -1].astype(int)]  # last column: index of the detection each track came from
+        result.update(boxes=torch.as_tensor(tracks[:, :-1], dtype=torch.float32))  # smoothed box, track id, score, class
+        ids = tracks[:, 4].astype(int)
+        self.hits.update(ids)
+        return result[torch.tensor([self.hits[i] >= self.min_hits for i in ids])]
 
 
 def pothole_sizes(result, ground_width_m):
