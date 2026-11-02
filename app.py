@@ -16,6 +16,9 @@ from detector import CONF, VIDEO_CONF, WEIGHTS, Tracker, count, load_model, poth
 ON_CLOUD = Path("/mount/src").exists()
 MAX_WIDTH = 1920 if ON_CLOUD else None
 MAX_SECONDS = 60 if ON_CLOUD else None
+# Potholes in a wide road video are small, so videos run the model on a bigger image than photos.
+# On frames from our demo road video, 960 px found about 3.5x as many boxes as 416 px.
+VIDEO_IMGSZ = 640 if ON_CLOUD else 960
 
 st.set_page_config(page_title="RoadGuard AI", page_icon=":material/add_road:", layout="wide")
 load_model = st.cache_resource(load_model)
@@ -64,8 +67,13 @@ def video_writer(path, fps, width, height):
     return writer.write, lambda: writer.release() or False
 
 
-st.title(":material/add_road: RoadGuard AI")
-st.caption("Finds road damage in photos and videos with a YOLOv8 model, so it can be reported and repaired early.")
+st.html(f"<style>{(Path(__file__).parent / 'style.css').read_text()}</style>")
+st.html("""<div class="rg-hero" role="img" aria-label="RoadGuard AI: a road with a detected pothole">
+  <div class="rg-road"></div><div class="rg-pothole"></div>
+  <div class="rg-hero-text"><h1>RoadGuard AI</h1>
+    <p>Finds road damage in photos and videos, so it can be reported and repaired early.</p>
+    <span class="rg-chip">YOLOv8</span><span class="rg-chip">ByteTrack tracking</span><span class="rg-chip">Pothole + Crack</span>
+  </div></div>""")
 
 if not WEIGHTS.exists():
     st.error("No trained model at weights/best.pt yet. Train one with train.ipynb and commit it.")
@@ -103,9 +111,9 @@ with video_tab:
     video_conf = st.slider("Video confidence threshold", 0.05, 0.95, VIDEO_CONF, 0.05,
                            help="Lower finds more potholes. Videos can go lower than photos, because a box is only "
                                 "shown once it is found in two model runs in a row.")
-    stride = st.slider("Run the model on every Nth frame", 1, 5, 3 if ON_CLOUD else 2,
-                       help="1 is the most accurate. Higher is faster; boxes are kept on the frames in between, "
-                            "so the output video stays smooth.")
+    rate = st.slider("Model runs per second of video", 2, 30, 6 if ON_CLOUD else 10,
+                     help="Higher is more thorough but slower. Boxes are kept on the frames in between, "
+                          "so the output video stays smooth at its own frame rate.")
     if ON_CLOUD:
         st.caption(f"On this free online server only the first {MAX_SECONDS} seconds are processed, at up to Full HD. "
                    "Run the app on a laptop for full-length videos at their original size.")
@@ -116,12 +124,13 @@ with video_tab:
             src.write_bytes(upload.read())
             cap = cv2.VideoCapture(str(src))
             fps = cap.get(cv2.CAP_PROP_FPS) or 30
+            stride = max(1, round(fps / rate))
             total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             limit = round(MAX_SECONDS * fps) if MAX_SECONDS else None
             if limit and total > limit:
                 total = limit
             progress, view = st.progress(0.0, "Starting..."), st.empty()
-            seen, peak, result, writer, i, tracker = Counter(), Counter(), None, None, 0, Tracker(video_conf)
+            seen, peak, result, writer, i, tracker = Counter(), Counter(), None, None, 0, Tracker(video_conf, imgsz=VIDEO_IMGSZ)
             while True:
                 ok, frame = cap.read()
                 if not ok or (limit and i >= limit):

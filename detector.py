@@ -19,9 +19,9 @@ def load_model(path=WEIGHTS):
     return YOLO(str(path))
 
 
-def predict(model, frame, conf=CONF):
-    """Run YOLOv8 on one BGR frame and return the Ultralytics result."""
-    return model.predict(frame, conf=conf, verbose=False)[0]
+def predict(model, frame, conf=CONF, imgsz=416):
+    """Run YOLOv8 on one BGR frame and return the Ultralytics result. 416 px is the size the model was trained at."""
+    return model.predict(frame, conf=conf, imgsz=imgsz, verbose=False)[0]
 
 
 def count(result):
@@ -38,15 +38,18 @@ def detect(model, frame, conf=CONF):
 class Tracker:
     """Follows each detection from one frame to the next (ByteTrack) so boxes in a video stay steady.
     A box is shown only once it has been found in `min_hits` model runs, which removes one-off false alarms.
-    Weaker detections (down to 0.1) may keep an already confirmed box alive, so it does not flicker."""
+    Weaker detections (down to 0.1) may keep an already confirmed box alive, so it does not flicker.
+    Boxes centred in the top `min_y` of the frame are ignored: with a forward-facing camera that is sky, buildings
+    and far-off traffic, not road. On frames from our demo video every box up there was a false alarm."""
 
-    def __init__(self, conf=VIDEO_CONF, min_hits=2):
+    def __init__(self, conf=VIDEO_CONF, min_hits=2, imgsz=416, min_y=0.38):
         cfg = IterableSimpleNamespace(**YAML.load(check_yaml("bytetrack.yaml")))
         cfg.track_high_thresh = cfg.new_track_thresh = conf  # only confident boxes can start a new track
-        self.tracker, self.hits, self.min_hits = BYTETracker(cfg), Counter(), min_hits
+        self.tracker, self.hits, self.min_hits, self.imgsz, self.min_y = BYTETracker(cfg), Counter(), min_hits, imgsz, min_y
 
     def __call__(self, model, frame):
-        result = predict(model, frame, conf=0.1)
+        result = predict(model, frame, conf=0.1, imgsz=self.imgsz)
+        result = result[result.boxes.xywhn[:, 1] >= self.min_y]
         tracks = self.tracker.update(result.boxes.cpu().numpy(), frame)
         if not len(tracks):
             return result[:0]

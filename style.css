@@ -1,0 +1,59 @@
+/* RoadGuard AI look: a 3D road hero, raised cards and images that tilt toward the viewer. Colours match .streamlit/config.toml. */
+.rg-hero {
+  position: relative; overflow: hidden; height: 230px; border-radius: 22px; margin-bottom: 8px;
+  background: radial-gradient(120% 90% at 50% 0%, #1E3A8A 0%, #0B1533 60%, #050A1C 100%);
+  box-shadow: 0 30px 60px -25px rgba(30, 64, 175, .55), inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+/* The road: a lane-marked strip laid flat with perspective, scrolling toward the viewer. */
+.rg-road {
+  position: absolute; right: 4%; bottom: 0; width: 460px; height: 700px;
+  transform: perspective(500px) rotateX(70deg); transform-origin: bottom;
+  background:
+    linear-gradient(#FBBF24 55%, transparent 55%) center 0 / 3% 90px repeat-y,
+    linear-gradient(90deg, #E2E8F0 0 2.5%, transparent 2.5% 97.5%, #E2E8F0 97.5%),
+    linear-gradient(#1F2937, #4B5563);
+  -webkit-mask-image: linear-gradient(transparent, #000 25%);
+  mask-image: linear-gradient(transparent, #000 25%);
+  animation: rg-drive .8s linear infinite;
+}
+@keyframes rg-drive { to { background-position: center 90px, 0 0, 0 0; } }
+/* A pothole on the road with a detection box around it, like the app draws. */
+.rg-pothole {
+  position: absolute; right: calc(4% + 260px); bottom: 34px; width: 84px; height: 28px; border-radius: 50%;
+  background: radial-gradient(#0B0F19, #1F2937 70%); box-shadow: 0 0 0 3px #2563EB, 0 0 18px #3B82F6;
+}
+.rg-pothole::after {
+  content: "Pothole"; position: absolute; top: -22px; left: -3px; padding: 1px 6px; border-radius: 4px;
+  font: 600 11px Inter, sans-serif; color: #fff; background: #2563EB;
+}
+.rg-hero-text { position: relative; padding: 28px 32px; color: #F8FAFC; max-width: 520px; }
+.rg-hero-text h1 { margin: 0; padding: 0; font-size: 2.6rem; font-weight: 700; letter-spacing: -.02em; color: #F8FAFC; }
+.rg-hero-text p { margin: 6px 0 14px; color: #CBD5E1; }
+.rg-chip {
+  display: inline-block; margin: 0 6px 6px 0; padding: 3px 10px; border-radius: 999px; font-size: .8rem;
+  color: #FDE68A; background: rgba(251, 191, 36, .12); border: 1px solid rgba(251, 191, 36, .35);
+}
+
+/* Raised cards for counts and images. */
+[data-testid="stMetric"] {
+  padding: 14px 18px; border-radius: 16px; background: #fff; border: 1px solid #DBEAFE;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 12px 24px -12px rgba(30, 64, 175, .35);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+[data-testid="stMetric"]:hover { transform: perspective(600px) rotateX(6deg) translateY(-4px); box-shadow: 0 22px 36px -14px rgba(30, 64, 175, .45); }
+[data-testid="stImage"] img, [data-testid="stVideo"] video {
+  border-radius: 14px; box-shadow: 0 24px 40px -22px rgba(15, 23, 42, .6); transition: transform .3s ease;
+}
+[data-testid="stImage"] img:hover { transform: perspective(900px) rotateY(-4deg) scale(1.01); }
+
+@media (max-width: 640px) {
+  .rg-road, .rg-pothole { opacity: .35; }
+  .rg-hero { height: 260px; }
+  .rg-hero-text { padding: 20px; }
+  .rg-hero-text h1 { font-size: 2rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rg-road { animation: none; }
+  [data-testid="stMetric"], [data-testid="stImage"] img { transition: none; }
+  [data-testid="stMetric"]:hover, [data-testid="stImage"] img:hover { transform: none; }
+}
