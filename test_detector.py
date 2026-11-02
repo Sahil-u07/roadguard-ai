@@ -22,16 +22,16 @@ class FakeModel:
         return [result(*self.runs.pop(0))]
 
 
-def test_tracker_shows_a_pothole_only_after_three_runs_and_drops_one_offs():
+def test_tracker_shows_a_pothole_only_after_two_runs_and_drops_one_offs():
     pothole = (100, 100, 200, 200, 0.9, 0)
     model = FakeModel([pothole], [pothole, (800, 300, 900, 400, 0.9, 0)], [pothole], [pothole])
     track, frame = Tracker(), np.zeros((500, 1000, 3), np.uint8)
     shown = [len(track(model, frame).boxes) for _ in range(4)]
-    assert shown == [0, 0, 1, 1]  # the box seen in one run only never appears
+    assert shown == [0, 1, 1, 1]  # the box seen in one run only never appears
 
 
 def test_tracker_keeps_a_confirmed_pothole_when_its_score_dips():
-    model = FakeModel(*[[(100, 100, 200, 200, 0.9, 0)]] * 3, [(102, 102, 202, 202, 0.2, 0)])
+    model = FakeModel(*[[(100, 100, 200, 200, 0.9, 0)]] * 3, [(102, 102, 202, 202, 0.15, 0)])
     track, frame = Tracker(), np.zeros((500, 1000, 3), np.uint8)
     for _ in range(3):
         track(model, frame)

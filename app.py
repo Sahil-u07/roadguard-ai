@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import streamlit as st
 
-from detector import CONF, WEIGHTS, Tracker, count, load_model, pothole_sizes, predict
+from detector import CONF, VIDEO_CONF, WEIGHTS, Tracker, count, load_model, pothole_sizes, predict
 
 # Streamlit Community Cloud runs apps from /mount/src. Its free server throttles apps that use too much CPU,
 # so there we keep videos to the first minute and at most Full HD. On a laptop the full video keeps its own size.
@@ -74,7 +74,7 @@ if not WEIGHTS.exists():
 model = load_model()
 with st.sidebar:
     st.subheader(":material/tune: Settings")
-    conf = st.slider("Confidence threshold", 0.05, 0.95, CONF, 0.05,
+    conf = st.slider("Photo confidence threshold", 0.05, 0.95, CONF, 0.05,
                      help="Only boxes the model is at least this sure about are shown. Raise it if you see false boxes.")
     ground_width = st.number_input("Road width the photo covers (m)", 0.1, 50.0, 2.0, 0.1,
                                    help="Used to turn pothole boxes into centimetres. A phone held at chest height "
@@ -100,6 +100,9 @@ with camera_tab:
 
 with video_tab:
     upload = st.file_uploader("Upload a road video", type=["mp4", "avi", "mov", "mkv"])
+    video_conf = st.slider("Video confidence threshold", 0.05, 0.95, VIDEO_CONF, 0.05,
+                           help="Lower finds more potholes. Videos can go lower than photos, because a box is only "
+                                "shown once it is found in two model runs in a row.")
     stride = st.slider("Run the model on every Nth frame", 1, 5, 3 if ON_CLOUD else 2,
                        help="1 is the most accurate. Higher is faster; boxes are kept on the frames in between, "
                             "so the output video stays smooth.")
@@ -118,7 +121,7 @@ with video_tab:
             if limit and total > limit:
                 total = limit
             progress, view = st.progress(0.0, "Starting..."), st.empty()
-            seen, peak, result, writer, i, tracker = Counter(), Counter(), None, None, 0, Tracker(conf)
+            seen, peak, result, writer, i, tracker = Counter(), Counter(), None, None, 0, Tracker(video_conf)
             while True:
                 ok, frame = cap.read()
                 if not ok or (limit and i >= limit):

@@ -11,6 +11,8 @@ from ultralytics.utils.checks import check_yaml
 WEIGHTS = Path(__file__).parent / "weights" / "best.pt"
 # Best F1 on the validation split was at 0.44. At the old 0.25 only about half the boxes on the test split were right.
 CONF = 0.45
+# Videos can start from weaker boxes, because a box must also be found again in the next model run to be shown.
+VIDEO_CONF = 0.25
 
 
 def load_model(path=WEIGHTS):
@@ -38,7 +40,7 @@ class Tracker:
     A box is shown only once it has been found in `min_hits` model runs, which removes one-off false alarms.
     Weaker detections (down to 0.1) may keep an already confirmed box alive, so it does not flicker."""
 
-    def __init__(self, conf=CONF, min_hits=3):
+    def __init__(self, conf=VIDEO_CONF, min_hits=2):
         cfg = IterableSimpleNamespace(**YAML.load(check_yaml("bytetrack.yaml")))
         cfg.track_high_thresh = cfg.new_track_thresh = conf  # only confident boxes can start a new track
         self.tracker, self.hits, self.min_hits = BYTETracker(cfg), Counter(), min_hits
