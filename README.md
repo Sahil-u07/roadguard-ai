@@ -6,6 +6,20 @@ PBL-III (AIM3170) project, Department of AIML, Manipal University Jaipur, 2026.
 
 **Live demo:** https://roadguard-ai-sahil.streamlit.app
 
+## Screenshots
+
+The app finding potholes in a road photo:
+
+![RoadGuard AI app detecting potholes in a road photo](docs/screenshots/01_app_pothole_detection.png)
+
+Test results of the current model (533 held-out images):
+
+![Model results: mAP@0.5 0.714, precision 0.752, recall 0.675, F1 0.712](docs/screenshots/02_model_results.png)
+
+Potholes found in a frame from our own road video:
+
+![Potholes detected in a frame from a road video](docs/screenshots/03_road_video_detection.jpg)
+
 ## Status (November 2026)
 
 | Part | Status |
